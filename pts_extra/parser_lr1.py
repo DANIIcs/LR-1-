@@ -1,9 +1,9 @@
 from __future__ import annotations
 from typing import List, Dict, Tuple
 
-from .core.grammar import Grammar
-from .core.lr1 import LR1Builder
-from .core.parser import LR1Parser
+from .grammar import Grammar
+from .lr1 import LR1Builder
+from .parser import LR1Parser
 
 EXPR_GRAMMAR = """
 E -> E + T | T
@@ -22,6 +22,6 @@ def build_parser(grammar_text: str | None = None):
 
 def parse_string(s: str, grammar_text: str | None = None) -> dict:
     b, p = build_parser(grammar_text)
-    from .core.lexer import tokenize_expr
+    from .lexer import tokenize_expr
     tokens = tokenize_expr(s)
     return {'builder': b, 'result': p.parse(tokens)}

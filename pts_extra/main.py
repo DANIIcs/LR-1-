@@ -4,7 +4,7 @@ import os
 
 from .scanner import Scanner, ejecutar_scanner
 from .parser_lr1 import build_parser
-from .core.lexer import tokenize_expr
+from .lexer import tokenize_expr
 
 HELP = """
 Uso: python -m pts_extra.main <ruta_input> [ruta_gramatica]

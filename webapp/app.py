@@ -8,10 +8,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from pts_extra.core.grammar import Grammar
-from pts_extra.core.lr1 import LR1Builder
-from pts_extra.core.parser import LR1Parser
-from pts_extra.core.lexer import tokenize_expr, tokens_from_space_separated
+from pts_extra.grammar import Grammar
+from pts_extra.lr1 import LR1Builder
+from pts_extra.parser import LR1Parser
+from pts_extra.lexer import tokenize_expr, tokens_from_space_separated
 
 app = Flask(__name__)
 
