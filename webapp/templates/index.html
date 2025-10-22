@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LR(1) Visual</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Visualizador LR(1)</h1>
+  </header>
+  <main>
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" class="panel">
+      <div class="column">
+        <label>Gramática (BNF):</label>
+        <textarea name="grammar" rows="14">{{ grammar }}</textarea>
+      </div>
+      <div class="column">
+        <label>Cadena de entrada:</label>
+        <input type="text" name="input" value="{{ input_text }}" />
+        <div class="radio">
+          <label><input type="radio" name="mode" value="lex" {% if mode=='lex' %}checked{% endif %}/> Léxico</label>
+          <label><input type="radio" name="mode" value="spaces" {% if mode=='spaces' %}checked{% endif %}/> Tokens separados por espacios</label>
+        </div>
+        <div class="buttons">
+          <button type="submit">Construir y Analizar</button>
+        </div>
+        {% if conflicts %}
+          <div class="warn">
+            <strong>Conflictos:</strong>
+            <ul>
+              {% for c in conflicts %}<li>{{ c }}</li>{% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      </div>
+    </form>
+
+    {% if tables %}
+      <section class="tables">
+        <h2>Tabla ACTION</h2>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>estado</th>
+                {% for a in tables.terminals %}<th>{{ a }}</th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for s, row in tables.action_rows %}
+                <tr>
+                  <td>{{ s }}</td>
+                  {% for cell in row %}
+                    <td>
+                      {% if cell %}
+                        {% if cell[0]=='s' %} s{{ cell[1] }}
+                        {% elif cell[0]=='r' %} r {{ cell[1][0] }}→{{ ' '.join(cell[1][1]) }}
+                        {% elif cell[0]=='acc' %} acc
+                        {% endif %}
+                      {% endif %}
+                    </td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <h2>Tabla GOTO</h2>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>estado</th>
+                {% for A in tables.nonterminals %}<th>{{ A }}</th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for s, row in tables.goto_rows %}
+                <tr>
+                  <td>{{ s }}</td>
+                  {% for cell in row %}
+                    <td>{% if cell is not none %}{{ cell }}{% endif %}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if result %}
+      <section>
+        <h2>Pasos del análisis</h2>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Pila estados</th>
+                <th>Pila símbolos</th>
+                <th>Entrada</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for st in result.steps %}
+                <tr>
+                  <td>{{ loop.index0 }}</td>
+                  <td>{{ st.states }}</td>
+                  <td>{{ st.symbols }}</td>
+                  <td>{{ ' '.join(st.input) }}</td>
+                  <td>{{ st.action }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p><strong>Resultado:</strong> {{ 'ACEPTADO' if result.accepted else 'RECHAZADO' }}</p>
+        {% if result.error %}<p class="error">{{ result.error }}</p>{% endif %}
+      </section>
+
+      {% if derivation %}
+        <section>
+          <h2>Derivación (aproximación derecha)</h2>
+          <ol class="derivation">
+            {% for sent in derivation %}
+              <li>{{ ' '.join(sent) }}</li>
+            {% endfor %}
+          </ol>
+        </section>
+      {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>
