@@ -119,3 +119,25 @@ class Grammar:
         else:
             result.add(self.EPSILON)
         return result
+
+    def compute_follow(self) -> Dict[Symbol, Set[Symbol]]:
+        first = self.compute_first()
+        follow: Dict[Symbol, Set[Symbol]] = {A: set() for A in self.nonterminals}
+        follow[self.start_symbol].add(self.END_MARKER)
+
+        changed = True
+        while changed:
+            changed = False
+            for A, rhss in self.productions.items():
+                for prod in rhss:
+                    for i, B in enumerate(prod):
+                        if B in self.nonterminals:
+                            beta = prod[i + 1:]
+                            first_beta = self.first_of_sequence(beta, first)
+                            before = len(follow[B])
+                            follow[B].update(x for x in first_beta if x != self.EPSILON)
+                            if not beta or self.EPSILON in first_beta:
+                                follow[B].update(follow[A])
+                            if len(follow[B]) > before:
+                                changed = True
+        return follow

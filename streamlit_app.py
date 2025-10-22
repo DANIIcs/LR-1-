@@ -3,7 +3,7 @@ import os
 from typing import List, Dict
 
 import streamlit as st
-
+import streamlit.components.v1 as components
 # Ensure repo root is on path (this file is already at repo root, but keep robust for cloud)
 ROOT = os.path.dirname(os.path.abspath(__file__))
 if ROOT not in sys.path:
@@ -12,7 +12,7 @@ if ROOT not in sys.path:
 from pts_extra.grammar import Grammar
 from pts_extra.lr1 import LR1Builder
 from pts_extra.parser import LR1Parser
-
+from pts_extra.automata import construir_automata_lr1, render_automata_svg_interactivo
 
 def build_derivation(reductions, grammar: Grammar) -> List[str]:
     if not reductions:
@@ -120,6 +120,8 @@ if analyze:
 
     try:
         grammar = Grammar.parse_bnf(grammar_text)
+        first = grammar.compute_first()
+        follow = grammar.compute_follow()
     except Exception as e:
         st.error(f"Error al procesar la gramática: {e}")
         st.stop()
@@ -164,7 +166,7 @@ if analyze:
     goto_rows = format_goto_table(builder)
     steps = format_parse_steps(result.get('steps', []))
 
-    tabs = st.tabs(["Gramática", "Tabla LR", "Derivación", "Pasos", "Estados"])
+    tabs = st.tabs(["Gramática", "Tabla LR", "Derivación", "Pasos", "Estados","Automatas"])
 
     with tabs[0]:
         stats_cols = st.columns(4)
@@ -178,16 +180,28 @@ if analyze:
         st.subheader("Símbolos no terminales")
         st.write(", ".join(sorted(grammar.nonterminals)))
 
+        st.subheader("Conjuntos FIRST")
+        for nt, f in first.items():
+            st.write(f"**{nt}** = {{ {', '.join(sorted(f))} }}")
+
+        st.subheader("Conjuntos FOLLOW")
+        for nt, f in follow.items():
+            st.write(f"**{nt}** = {{ {', '.join(sorted(f))} }}")
+
     with tabs[1]:
         st.markdown("#### Tabla ACTION")
         st.dataframe(action_rows, use_container_width=True)
         st.markdown("#### Tabla GOTO")
         st.dataframe(goto_rows, use_container_width=True)
 
+
     with tabs[2]:
         if derivation:
+            st.markdown("### Derivación paso a paso")
+            derivation_table = []
             for i, step in enumerate(derivation, start=1):
-                st.write(f"{i}. {step}")
+                derivation_table.append({"Paso": i, "Producción": step})
+            st.dataframe(derivation_table, use_container_width=True)
         else:
             st.info("No se pudo construir la derivación.")
 
@@ -199,6 +213,20 @@ if analyze:
 
     with tabs[4]:
         render_states(builder)
+
+    with tabs[5]:
+        st.header("Autómata LR(1) Interactivo")
+        html = render_automata_svg_interactivo(builder)
+        components.html(html, height=600, scrolling=False)
+
+        # Botón para descargar el SVG también
+        svg_data = html.encode("utf-8")
+        st.download_button(
+            "📥 Descargar Autómata LR(1) (SVG)",
+            data=svg_data,
+            file_name="automata_lr1.svg",
+            mime="image/svg+xml"
+        )
 
 else:
     st.info("Ingrese la gramática y la cadena, luego presione Analizar.")
