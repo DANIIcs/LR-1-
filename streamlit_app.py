@@ -12,7 +12,7 @@ if ROOT not in sys.path:
 from pts_extra.grammar import Grammar
 from pts_extra.lr1 import LR1Builder
 from pts_extra.parser import LR1Parser
-from pts_extra.automata import construir_automata_lr1, render_automata_svg_interactivo
+from pts_extra.automata import construir_automata_lr1, render_automata_svg_interactivo, render_afn_items_lr1
 
 def build_derivation(reductions, grammar: Grammar) -> List[str]:
     if not reductions:
@@ -86,6 +86,49 @@ def render_states(builder: LR1Builder):
                 st.code(f"{item.head} -> {' '.join(rhs)}   |   {item.lookahead}")
 
 
+def render_lr1_items_columns(builder):
+    """
+    Muestra los ítems LR(1) agrupados por símbolo, en formato de columnas.
+    """
+    st.markdown("### 📘 Elementos LR(1) por símbolo (en columnas)")
+
+    # Agrupar ítems por cabeza (head)
+    grupos = {}
+    for state in builder.states:
+        for item in state:
+            grupos.setdefault(item.head, []).append(item)
+
+    # Crear 3 columnas si hay 3 no terminales, ajustar dinámicamente
+    num_cols = min(4, len(grupos))
+    cols = st.columns(num_cols)
+
+    heads = sorted(grupos.keys())
+
+    for i, head in enumerate(heads):
+        with cols[i % num_cols]:
+            st.markdown(
+                f"<div style='background-color:#111;padding:10px;border-radius:10px;'>"
+                f"<h4 style='color:#00BFFF;text-align:center;margin-bottom:6px;'>{head}</h4>"
+                f"<hr style='border:1px solid #333;margin:4px 0;'>",
+                unsafe_allow_html=True
+            )
+
+            html_items = ""
+            for item in grupos[head]:
+                rhs = list(item.body)
+                rhs.insert(item.dot, "•")
+                rhs_str = " ".join(rhs)
+                lookaheads = ", ".join(sorted(item.lookahead))
+                html_items += (
+                    f"<div style='font-family:Consolas,monospace;"
+                    f"margin:2px 0;padding:2px 5px;"
+                    f"background-color:#1a1a1a;border-radius:5px;'>"
+                    f"<span style='color:#FFF;'>{item.head} → {rhs_str}</span> "
+                    f"<span style='color:#00FFAA'>, {lookaheads}</span>"
+                    f"</div>"
+                )
+
+            st.markdown(html_items + "</div>", unsafe_allow_html=True)
 # ---------------- UI -----------------
 st.set_page_config(page_title="Analizador LR(1)", page_icon="📊", layout="wide")
 st.title("Analizador LR(1) • Streamlit")
@@ -166,34 +209,98 @@ if analyze:
     goto_rows = format_goto_table(builder)
     steps = format_parse_steps(result.get('steps', []))
 
-    tabs = st.tabs(["Gramática", "Tabla LR", "Derivación", "Pasos", "Estados","Automatas"])
+    tabs = st.tabs(["Gramática", "Tabla de derivación", "Ampliación LR1", "Pasos", "Estados","Automatas"])
 
     with tabs[0]:
-        stats_cols = st.columns(4)
-        stats_cols[0].metric("Producciones", sum(len(rhss) for rhss in grammar.productions.values()))
-        stats_cols[1].metric("Terminales", len(grammar.terminals | {Grammar.END_MARKER}))
-        stats_cols[2].metric("No terminales", len(grammar.nonterminals))
-        stats_cols[3].metric("Estados LR(1)", len(builder.states))
+        st.markdown("## 📘 Resumen de la Gramática")
+        st.divider()
 
-        st.subheader("Símbolos terminales")
-        st.write(", ".join(sorted(grammar.terminals | {Grammar.END_MARKER})))
-        st.subheader("Símbolos no terminales")
-        st.write(", ".join(sorted(grammar.nonterminals)))
+        # --- Tarjetas métricas principales ---
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Producciones", sum(len(rhss) for rhss in grammar.productions.values()))
+        col2.metric("Terminales", len(grammar.terminals | {Grammar.END_MARKER}))
+        col3.metric("No terminales", len(grammar.nonterminals))
+        col4.metric("Estados LR(1)", len(builder.states))
 
-        st.subheader("Conjuntos FIRST")
-        for nt, f in first.items():
-            st.write(f"**{nt}** = {{ {', '.join(sorted(f))} }}")
+        st.markdown("---")
 
-        st.subheader("Conjuntos FOLLOW")
-        for nt, f in follow.items():
-            st.write(f"**{nt}** = {{ {', '.join(sorted(f))} }}")
+        # --- Bloques laterales: símbolos terminales y no terminales ---
+        st.markdown("### 🔹 Símbolos principales")
+
+        col_t, col_nt = st.columns(2)
+
+        # --- Terminales ---
+        with col_t:
+            terminales_html = "".join([
+                f"<code style='background-color:#222;padding:3px 8px;border-radius:6px;"
+                f"margin:3px;display:inline-block;color:#FFD700;'>{t}</code>"
+                for t in sorted(grammar.terminals | {Grammar.END_MARKER})
+            ])
+            st.markdown(
+                f"<b style='color:#FFD700;'>Terminales</b><br>"
+                f"<div style='font-family:Consolas,monospace;font-size:13px;margin-top:6px;'>{terminales_html}</div>",
+                unsafe_allow_html=True
+            )
+
+        # --- No terminales ---
+        with col_nt:
+            no_terminales_html = "".join([
+                f"<code style='background-color:#222;padding:3px 8px;border-radius:6px;"
+                f"margin:3px;display:inline-block;color:#00BFFF;'>{nt}</code>"
+                for nt in sorted(grammar.nonterminals)
+            ])
+            st.markdown(
+                f"<b style='color:#00BFFF;'>No terminales</b><br>"
+                f"<div style='font-family:Consolas,monospace;font-size:13px;margin-top:6px;'>{no_terminales_html}</div>",
+                unsafe_allow_html=True
+            )
+
+        st.markdown("---")
+
+        # --- FIRST y FOLLOW uno al lado del otro ---
+        st.markdown("### 🧩 Conjuntos FIRST y FOLLOW")
+        col_first, col_follow = st.columns(2)
+        with col_first:
+            st.markdown("##### FIRST")
+            st.markdown(
+                "<div style='font-family:Consolas,monospace;font-size:13px;'>"
+                + "<br>".join([
+                    f"<code>{nt}</code> = {{ {', '.join(sorted(f))} }}"
+                    for nt, f in sorted(first.items())
+                ])
+                + "</div>", unsafe_allow_html=True
+            )
+        with col_follow:
+            st.markdown("##### FOLLOW")
+            st.markdown(
+                "<div style='font-family:Consolas,monospace;font-size:13px;'>"
+                + "<br>".join([
+                    f"<code>{nt}</code> = {{ {', '.join(sorted(f))} }}"
+                    for nt, f in sorted(follow.items())
+                ])
+                + "</div>", unsafe_allow_html=True
+            )
+
+        st.markdown("---")
+
+        # --- Producciones con fondo tipo código ---
+        st.markdown("### 📜 Producciones")
+        st.markdown(
+            "<div style='font-family:Consolas,monospace;font-size:14px;"
+            "background-color:#1e1e1e;border-radius:8px;padding:10px;'>"
+            + "<br>".join(
+                [f"<code>{head} → {' '.join(body)}</code>" for head, bodies in grammar.productions.items() for body in
+                 bodies]
+            )
+            + "</div>",
+            unsafe_allow_html=True
+        )
 
     with tabs[1]:
         st.markdown("#### Tabla ACTION")
         st.dataframe(action_rows, use_container_width=True)
         st.markdown("#### Tabla GOTO")
         st.dataframe(goto_rows, use_container_width=True)
-
 
     with tabs[2]:
         if derivation:
@@ -202,8 +309,43 @@ if analyze:
             for i, step in enumerate(derivation, start=1):
                 derivation_table.append({"Paso": i, "Producción": step})
             st.dataframe(derivation_table, use_container_width=True)
-        else:
-            st.info("No se pudo construir la derivación.")
+
+            # ---------------- NUEVA SECCIÓN: Ítems agrupados por símbolo ----------------
+            st.markdown("### Elementos LR(1) agrupados por símbolo")
+
+            grupos = {}
+            for state in builder.states:
+                for item in state:
+                    grupos.setdefault(item.head, []).append(item)
+
+            num_cols = min(4, len(grupos))
+            cols = st.columns(num_cols)
+
+            for i, (head, items) in enumerate(sorted(grupos.items())):
+                with cols[i % num_cols]:
+                    st.markdown(
+                        f"<div style='background-color:#111;padding:10px;border-radius:10px;'>"
+                        f"<h4 style='color:#00BFFF;text-align:center;margin-bottom:6px;'>{head}</h4>"
+                        f"<hr style='border:1px solid #333;margin:4px 0;'>",
+                        unsafe_allow_html=True
+                    )
+
+                    html_items = ""
+                    for item in items:
+                        rhs = list(item.body)
+                        rhs.insert(item.dot, "•")
+                        rhs_str = " ".join(rhs)
+                        lookaheads = ", ".join(sorted(item.lookahead))
+                        html_items += (
+                            f"<div style='font-family:Consolas,monospace;"
+                            f"margin:2px 0;padding:2px 5px;"
+                            f"background-color:#1a1a1a;border-radius:5px;'>"
+                            f"<span style='color:#FFF;'>{item.head} → {rhs_str}</span> "
+                            f"<span style='color:#00FFAA'>, {lookaheads}</span>"
+                            f"</div>"
+                        )
+
+                    st.markdown(html_items + "</div>", unsafe_allow_html=True)
 
     with tabs[3]:
         if steps:
@@ -215,18 +357,19 @@ if analyze:
         render_states(builder)
 
     with tabs[5]:
-        st.header("Autómata LR(1) Interactivo")
-        html = render_automata_svg_interactivo(builder)
-        components.html(html, height=600, scrolling=False)
+        st.header("🔹 Autómatas LR(1)")
 
-        # Botón para descargar el SVG también
-        svg_data = html.encode("utf-8")
-        st.download_button(
-            "📥 Descargar Autómata LR(1) (SVG)",
-            data=svg_data,
-            file_name="automata_lr1.svg",
-            mime="image/svg+xml"
-        )
+        # --- AFN (items individuales con ε) ---
+        st.subheader("1️⃣ AFN de items (no determinista)")
+        afn_html = render_afn_items_lr1(builder)
+        components.html(afn_html, height=600, scrolling=False)
+
+        st.divider()
+
+        # --- AFD (canónico LR(1)) ---
+        st.subheader("2️⃣ AFD de estados canónicos (determinista)")
+        afd_html = render_automata_svg_interactivo(builder)
+        components.html(afd_html, height=600, scrolling=False)
 
 else:
     st.info("Ingrese la gramática y la cadena, luego presione Analizar.")
