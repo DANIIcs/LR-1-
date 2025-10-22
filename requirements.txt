@@ -1,1 +1,15 @@
+# Core app
 streamlit>=1.30,<2
+
+# Visualización de autómatas y gráficos
+graphviz>=0.20
+
+# Comunicación con el renderizador remoto (kroki.io)
+requests>=2.31
+
+# Tipos y utilidades de compatibilidad
+typing-extensions>=4.9
+
+# Para manejo interno de tablas y dataframes en Streamlit
+pandas>=2.2
+numpy>=1.26
