@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple
 
 from .grammar import Grammar, Symbol
 
@@ -13,7 +13,6 @@ class LR1Parser:
         self.goto = goto
 
     def parse(self, tokens: List[Symbol]) -> dict:
-        # Ensure end marker
         if not tokens or tokens[-1] != Grammar.END_MARKER:
             tokens = tokens + [Grammar.END_MARKER]
         state_stack: List[int] = [0]
@@ -41,11 +40,12 @@ class LR1Parser:
                     'accepted': False,
                     'error': f'No hay acción para estado {s} y símbolo {a}',
                     'steps': steps,
+                    'reductions': reductions,
                 }
             if act[0] == 's':
                 j = act[1]  # type: ignore[index]
                 sym_stack.append(a)
-                state_stack.append(j)  # shift
+                state_stack.append(j)
                 pos += 1
                 snapshot(f'shift {a}, goto state {j}')
             elif act[0] == 'r':
@@ -53,7 +53,6 @@ class LR1Parser:
                 k = len(body)
                 if body == [Grammar.EPSILON]:
                     k = 0
-                # pop k
                 for _ in range(k):
                     if sym_stack:
                         sym_stack.pop()

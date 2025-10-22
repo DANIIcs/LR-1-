@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Set, Tuple, Iterable, Optional
 
-from .grammar import Grammar, Symbol, Production
+from .grammar import Grammar, Symbol
 
 
 @dataclass(frozen=True)
@@ -54,8 +54,9 @@ class LR1Builder:
                     if Grammar.EPSILON in lookaheads:
                         lookaheads = (lookaheads - {Grammar.EPSILON}) | {it.lookahead}
                     for prod in self.aug.productions[X]:
+                        prod_list = prod if prod != [Grammar.EPSILON] else []
                         for a in lookaheads:
-                            new_items.add(LR1Item(X, tuple(prod if prod != [Grammar.EPSILON] else []), 0, a))
+                            new_items.add(LR1Item(X, tuple(prod_list), 0, a))
             for ni in new_items:
                 if ni not in I:
                     I.add(ni)
@@ -100,14 +101,12 @@ class LR1Builder:
         self.goto_table = {}
         self.conflicts = []
         for i, I in enumerate(self.states):
-            # Shifts
             for it in I:
                 a = it.next_symbol()
                 if a and a in self.aug.terminals:
                     j = self.transitions.get((i, a))
                     if j is not None:
                         self._set_action(i, a, ('s', j))
-            # Reductions and accept
             for it in I:
                 if it.at_end():
                     if it.head == self.aug.start_symbol and it.lookahead == Grammar.END_MARKER:
@@ -115,7 +114,6 @@ class LR1Builder:
                     else:
                         prod = list(it.body)
                         self._set_action(i, it.lookahead, ('r', (it.head, prod)))
-            # GOTO
             for A in self.aug.nonterminals:
                 j = self.transitions.get((i, A))
                 if j is not None:

@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.log
+*.egg-info/
+.eggs/
+.dist-info/
+.build/
+build/
+dist/
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE/editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Flask/instance
+instance/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Node (if any)
+node_modules/
+
+# C/C++ artifacts (from 'continua' folder)
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.lib
+*.dll
+*.pdb
+
+# Misc
+webapp/__pycache__/

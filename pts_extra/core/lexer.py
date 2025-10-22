@@ -2,9 +2,6 @@ from __future__ import annotations
 import re
 from typing import List
 
-# Simple regex-based lexer for arithmetic-like expressions
-# Produces tokens: id, '+', '*', '(', ')'
-
 TOKEN_SPEC = [
     ('WS',      r'[ \t\r\n]+'),
     ('NUMBER',  r'\d+(?:\.\d+)?'),
@@ -23,7 +20,6 @@ def tokenize_expr(text: str) -> List[str]:
     while pos < len(text):
         m = TOKEN_RE.match(text, pos)
         if not m:
-            # Unknown character: try to treat as literal terminal
             ch = text[pos]
             if not ch.strip():
                 pos += 1
@@ -35,7 +31,6 @@ def tokenize_expr(text: str) -> List[str]:
         if kind == 'WS':
             continue
         elif kind in ('NUMBER', 'ID'):
-            # Map both to 'id' to match typical grammars
             tokens.append('id')
         elif kind == 'PLUS':
             tokens.append('+')

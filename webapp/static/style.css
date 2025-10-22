@@ -1,20 +1,20 @@
-body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;margin:0;background:#0c1218;color:#e6e8ea}
-header{padding:12px 20px;background:#0f1720;border-bottom:1px solid #1f2a37}
-h1{margin:0;font-size:20px}
-main{padding:16px}
-.panel{display:flex;gap:16px;align-items:stretch}
-.panel .column{flex:1;min-width:280px;display:flex;flex-direction:column;gap:8px}
-textarea{width:100%;background:#0b1117;color:#e6e8ea;border:1px solid #1f2a37;border-radius:6px;padding:8px}
-input[type=text]{width:100%;background:#0b1117;color:#e6e8ea;border:1px solid #1f2a37;border-radius:6px;padding:8px}
-.buttons{margin-top:8px}
-button{background:#0ea5e9;color:white;border:none;border-radius:6px;padding:8px 12px;cursor:pointer}
-button:hover{background:#0284c7}
-.error{background:#7f1d1d;color:#fee2e2;padding:8px 10px;border-radius:6px;margin-bottom:12px}
-.warn{background:#4a3a0a;color:#fde68a;padding:8px 10px;border-radius:6px}
-.tables{margin-top:16px}
-.scroll{overflow:auto;max-height:360px;border:1px solid #1f2a37;border-radius:6px}
-table{width:max-content;border-collapse:collapse}
-th,td{border:1px solid #1f2a37;padding:4px 6px;text-align:left;white-space:nowrap}
-th{background:#111827}
-.derivation{background:#0b1117;padding:8px 10px;border-radius:6px}
-.radio label{margin-right:10px}
+/* Minimal light theme */
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;margin:16px;background:#fff;color:#111}
+header{margin-bottom:8px}
+h1{margin:0 0 8px 0;font-size:20px;font-weight:600}
+main{display:block}
+.panel{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.panel .column{display:flex;flex-direction:column;gap:6px}
+textarea, input[type=text]{width:100%;border:1px solid #ccc;border-radius:4px;padding:8px;background:#fff;color:#111}
+.buttons{margin-top:6px}
+button{background:#111;color:#fff;border:1px solid #111;border-radius:4px;padding:6px 10px;cursor:pointer}
+button:hover{background:#333}
+.error{background:#fee;border:1px solid #f99;color:#700;padding:6px 8px;border-radius:4px;margin-bottom:8px}
+.warn{background:#fffbec;border:1px solid #f5d48b;color:#6b4e00;padding:6px 8px;border-radius:4px}
+.tables{margin-top:8px}
+.scroll{overflow:auto;max-height:380px;border:1px solid #eee;border-radius:4px}
+table{border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ddd;padding:4px 6px;text-align:left;white-space:nowrap}
+th{background:#f7f7f7}
+.derivation{padding:6px 8px;border:1px solid #eee;border-radius:4px;background:#fafafa}
+.radio label{margin-right:8px}

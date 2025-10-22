@@ -1,4 +1,4 @@
-# Gramática de expresiones
+# Gramática por defecto (expresiones)
 E -> E + T | T
 T -> T * F | F
 F -> ( E ) | id

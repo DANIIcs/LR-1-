@@ -1,11 +1,17 @@
 from __future__ import annotations
 from flask import Flask, render_template, request
 from typing import List, Dict, Tuple
+import os, sys
 
-from lr1_py.grammar import Grammar
-from lr1_py.lr1 import LR1Builder
-from lr1_py.parser import LR1Parser
-from lr1_py.lexer import tokenize_expr, tokens_from_space_separated
+# Ensure repo root is on sys.path so we can import lr1_py when running with -m
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from pts_extra.core.grammar import Grammar
+from pts_extra.core.lr1 import LR1Builder
+from pts_extra.core.parser import LR1Parser
+from pts_extra.core.lexer import tokenize_expr, tokens_from_space_separated
 
 app = Flask(__name__)
 
