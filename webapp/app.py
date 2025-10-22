@@ -1,121 +1,205 @@
-from __future__ import annotations
-from flask import Flask, render_template, request
-from typing import List, Dict, Tuple
-import os, sys
+from flask import Flask, render_template, request, jsonify
+import sys
+import os
 
-# Ensure repo root is on sys.path so we can import lr1_py when running with -m
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
+# Add the parent directory to Python path so we can import pts_extra
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pts_extra.grammar import Grammar
 from pts_extra.lr1 import LR1Builder
 from pts_extra.parser import LR1Parser
-from pts_extra.lexer import tokenize_expr, tokens_from_space_separated
 
 app = Flask(__name__)
 
-EXPR_GRAMMAR = """
-# Gramática de expresiones aritméticas (LR(1))
-E -> E + T | T
-T -> T * F | F
-F -> ( E ) | id
-""".strip()
-
-
-def compute_tables_for_template(builder: LR1Builder):
-    # Terminales (incluyendo $)
-    terminals = sorted(list(builder.aug.terminals | {Grammar.END_MARKER}))
-    nonterminals = sorted(list(builder.aug.nonterminals))
-    # ACTION y GOTO como matrices por estado
-    action_rows = []
-    for s in range(len(builder.states)):
-        row = []
-        for a in terminals:
-            val = builder.action.get((s, a))
-            row.append(val)
-        action_rows.append((s, row))
-    goto_rows = []
-    for s in range(len(builder.states)):
-        row = []
-        for A in nonterminals:
-            val = builder.goto_table.get((s, A))
-            row.append(val)
-        goto_rows.append((s, row))
-    return terminals, nonterminals, action_rows, goto_rows
-
-
-def derive_sentential_forms(start_symbol: str, reductions: List[Tuple[str, List[str]]]) -> List[List[str]]:
-    """
-    Reconstruye una derivación (aproximación a la derivación por la derecha) a partir de las reducciones
-    realizadas por el parser LR, aplicándolas en orden inverso.
-    """
-    forms: List[List[str]] = [[start_symbol]]
-    w = [start_symbol]
-    for head, body in reversed(reductions):
-        # Reemplazar la ocurrencia más a la derecha de head por body
-        try:
-            idx = len(w) - 1 - w[::-1].index(head)
-        except ValueError:
-            # Si no se encuentra, intentamos la primera ocurrencia (mejor esfuerzo)
-            try:
-                idx = w.index(head)
-            except ValueError:
-                continue
-        replacement = [] if body == [Grammar.EPSILON] else body
-        w = w[:idx] + replacement + w[idx + 1 :]
-        forms.append(w[:])
-    return forms
-
-
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
-    grammar_text = EXPR_GRAMMAR
-    input_text = 'id + id * id'
-    mode = 'lex'
-    result = None
-    tables = None
-    conflicts = []
+    return render_template('index.html')
 
-    if request.method == 'POST':
-        grammar_text = request.form.get('grammar', '').strip() or EXPR_GRAMMAR
-        input_text = request.form.get('input', '').strip()
-        mode = request.form.get('mode', 'lex')
+@app.route('/', methods=['POST'])
+def analyze():
+    grammar_text = request.form.get('grammar', '').strip()
+    input_string = request.form.get('string', '').strip()
+    
+    if not grammar_text or not input_string:
+        return render_template('index.html', result={
+            'success': False,
+            'error': 'Por favor proporciona tanto la gramática como la cadena de entrada.'
+        })
+    
+    try:
+        # Parse grammar
+        grammar = Grammar.parse_bnf(grammar_text)
+        
+        # Build LR(1) tables
+        builder = LR1Builder(grammar)
+        builder.build_tables()
+        
+        # Check for conflicts
+        if builder.conflicts:
+            return render_template('index.html', result={
+                'success': False,
+                'error': 'La gramática tiene conflictos y no es LR(1)',
+                'conflicts': [str(conflict) for conflict in builder.conflicts]
+            })
+        
+        # Parse the input string
+        parser = LR1Parser(grammar, builder.action, builder.goto_table)
+        
+        # Tokenize input (simple space separation for now)
+        tokens = input_string.split()
+        
         try:
-            g = Grammar.parse_bnf(grammar_text)
-            builder = LR1Builder(g)
-            builder.build_tables()
-            parser = LR1Parser(builder.aug, builder.action, builder.goto_table)
-            tokens = tokenize_expr(input_text) if mode == 'lex' else tokens_from_space_separated(input_text)
-            result = parser.parse(tokens)
-            terminals, nonterminals, action_rows, goto_rows = compute_tables_for_template(builder)
-            tables = {
-                'terminals': terminals,
-                'nonterminals': nonterminals,
-                'action_rows': action_rows,
-                'goto_rows': goto_rows,
-            }
-            conflicts = builder.conflicts
-            # Derivación aproximada desde las reducciones
-            derivation = derive_sentential_forms(builder.aug.start_symbol, result.get('reductions', [])) if result else []
+            result_data = parser.parse(tokens)
+            
+            if result_data.get('accepted'):
+                # Build derivation from reductions (reverse order)
+                derivation = build_derivation(result_data.get('reductions', []), grammar)
+                
+                # Collect data for the template
+                result = {
+                    'success': True,
+                    'derivation': derivation,
+                    'parse_steps': format_parse_steps(result_data.get('steps', [])),
+                    'states': format_states(builder.states),
+                    'action_table': format_action_table(builder),
+                    'goto_table': format_goto_table(builder),
+                    'terminals': sorted(list(grammar.terminals | {Grammar.END_MARKER})),
+                    'nonterminals': sorted(list(grammar.nonterminals)),
+                    'productions_count': len(grammar.productions)
+                }
+                
+                return render_template('index.html', result=result)
+            else:
+                return render_template('index.html', result={
+                    'success': False,
+                    'error': result_data.get('error', 'La cadena no es aceptada por la gramática')
+                })
+                
         except Exception as e:
-            return render_template('index.html', error=str(e),
-                                   grammar=grammar_text, input_text=input_text, mode=mode)
-        return render_template('index.html',
-                               grammar=grammar_text,
-                               input_text=input_text,
-                               mode=mode,
-                               tables=tables,
-                               result=result,
-                               derivation=derivation,
-                               conflicts=conflicts)
+            return render_template('index.html', result={
+                'success': False,
+                'error': f'Error durante el análisis: {str(e)}'
+            })
+            
+    except Exception as e:
+        return render_template('index.html', result={
+            'success': False,
+            'error': f'Error al procesar la gramática: {str(e)}'
+        })
 
-    return render_template('index.html', grammar=grammar_text, input_text=input_text, mode=mode)
+def build_derivation(reductions, grammar):
+    """Build derivation sequence from reductions"""
+    if not reductions:
+        return []
+    
+    derivation = []
+    # Start with the start symbol
+    current = grammar.start_symbol
+    derivation.append(current)
+    
+    # Apply reductions in reverse order to get leftmost derivation
+    for head, body in reversed(reductions):
+        if body == [Grammar.EPSILON]:
+            body_str = Grammar.EPSILON
+        else:
+            body_str = ' '.join(body)
+        derivation.append(f"{head} → {body_str}")
+    
+    return derivation
 
+def format_parse_steps(steps):
+    """Format parse steps for display"""
+    formatted_steps = []
+    for step in steps:
+        # Handle both old and new step formats
+        if 'stack' in step:
+            stack = step['stack']
+            input_tokens = step['input']
+        else:
+            # New format with 'states' and 'symbols'
+            stack = step.get('symbols', [])
+            input_tokens = step.get('input', [])
+            
+        formatted_steps.append({
+            'stack': ' '.join(str(x) for x in stack),
+            'input': ' '.join(str(x) for x in input_tokens),
+            'action': step.get('action', '')
+        })
+    return formatted_steps
 
-def create_app():
-    return app
+def format_states(states):
+    """Format LR(1) states for display"""
+    formatted_states = []
+    for state_id, state in enumerate(states):
+        items = []
+        for item in state:  # state is a set of LR1Item objects
+            # Format the item nicely
+            # Insert the dot at the right position
+            rhs = list(item.body)
+            rhs.insert(item.dot, '•')
+            
+            production_str = f"{item.head} -> {' '.join(rhs)}"
+            items.append({
+                'production': production_str,
+                'lookahead': item.lookahead
+            })
+        
+        formatted_states.append({
+            'id': state_id,
+            'items': items
+        })
+    
+    return formatted_states
 
+def format_action_table(builder):
+    """Format ACTION table for display"""
+    terminals = sorted(list(builder.aug.terminals | {Grammar.END_MARKER}))
+    action_table = []
+    
+    for state_id in range(len(builder.states)):
+        row = {}
+        for terminal in terminals:
+            key = (state_id, terminal)
+            if key in builder.action:
+                action = builder.action[key]
+                if action[0] == 's':
+                    row[terminal] = f"s{action[1]}"
+                elif action[0] == 'r':
+                    # action[1] is (head, body) tuple
+                    head, body = action[1]
+                    # Find production index for display
+                    prod_idx = 0
+                    # Search through all productions to find matching one
+                    for lhs, rhss in builder.aug.productions.items():
+                        for rhs in rhss:
+                            if lhs == head and rhs == body:
+                                break
+                            prod_idx += 1
+                        else:
+                            continue
+                        break
+                    row[terminal] = f"r{prod_idx}"
+                elif action[0] == 'acc':
+                    row[terminal] = "accept"
+        action_table.append(row)
+    
+    return action_table
+
+def format_goto_table(builder):
+    """Format GOTO table for display"""
+    nonterminals = sorted(list(builder.aug.nonterminals))
+    goto_table = []
+    
+    for state_id in range(len(builder.states)):
+        row = {}
+        for nonterminal in nonterminals:
+            key = (state_id, nonterminal)
+            if key in builder.goto_table:
+                next_state = builder.goto_table[key]
+                row[nonterminal] = str(next_state)
+        goto_table.append(row)
+    
+    return goto_table
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)

@@ -1,143 +1,385 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LR(1) Visual</title>
-  <link rel="stylesheet" href="/static/style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analizador LR(1)</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style_new.css') }}">
 </head>
 <body>
-  <header>
-    <h1>LR(1) Minimal</h1>
-  </header>
-  <main>
-    {% if error %}
-      <div class="error">{{ error }}</div>
-    {% endif %}
-
-    <form method="post" class="panel">
-      <div class="column">
-        <label>Gramática (BNF):</label>
-        <textarea name="grammar" rows="14">{{ grammar }}</textarea>
-      </div>
-      <div class="column">
-        <label>Cadena de entrada:</label>
-        <input type="text" name="input" value="{{ input_text }}" />
-        <div class="radio">
-          <label><input type="radio" name="mode" value="lex" {% if mode=='lex' %}checked{% endif %}/> Léxico</label>
-          <label><input type="radio" name="mode" value="spaces" {% if mode=='spaces' %}checked{% endif %}/> Tokens separados por espacios</label>
+    <div class="container">
+        <header class="header">
+            <h1>Analizador LR(1)</h1>
+            <p>Parser canónico LR(1) con análisis de gramáticas BNF</p>
+        </header>
+        
+        <div class="input-section">
+            <form method="POST" id="lr1-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="grammar">Gramática (formato BNF):</label>
+                        <textarea id="grammar" name="grammar" rows="6" placeholder="Ejemplo:&#10;E -> E + T | T&#10;T -> T * F | F&#10;F -> ( E ) | id">{{ request.form.get('grammar', '') }}</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="string">Cadena a analizar:</label>
+                        <input type="text" id="string" name="string" value="{{ request.form.get('string', '') }}" placeholder="id + id * id">
+                        
+                        <button type="submit" class="analyze-btn">
+                            <span>Analizar</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="presets">
+                    <label>Ejemplos rápidos:</label>
+                    <div class="preset-buttons">
+                        <button type="button" onclick="loadPreset('arithmetic')" class="preset-btn">Aritmética</button>
+                        <button type="button" onclick="loadPreset('simple')" class="preset-btn">Simple</button>
+                        <button type="button" onclick="loadPreset('parentheses')" class="preset-btn">Paréntesis</button>
+                        <button type="button" onclick="loadPreset('if_else')" class="preset-btn">If-Else</button>
+                        <button type="button" onclick="loadPreset('while')" class="preset-btn">While</button>
+                        <button type="button" onclick="loadPreset('assignment')" class="preset-btn">Asignación</button>
+                        <button type="button" onclick="loadPreset('lists')" class="preset-btn">Listas</button>
+                    </div>
+                </div>
+            </form>
         </div>
-        <div class="buttons">
-          <button type="submit">Construir y Analizar</button>
-        </div>
-        {% if conflicts %}
-          <div class="warn">
-            <strong>Conflictos:</strong>
-            <ul>
-              {% for c in conflicts %}<li>{{ c }}</li>{% endfor %}
-            </ul>
-          </div>
-        {% endif %}
-      </div>
-    </form>
 
-    {% if tables %}
-      <section class="tables">
-  <h2>Tabla ACTION</h2>
-        <div class="scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>estado</th>
-                {% for a in tables.terminals %}<th>{{ a }}</th>{% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for s, row in tables.action_rows %}
-                <tr>
-                  <td>{{ s }}</td>
-                  {% for cell in row %}
-                    <td>
-                      {% if cell %}
-                        {% if cell[0]=='s' %} s{{ cell[1] }}
-                        {% elif cell[0]=='r' %} r {{ cell[1][0] }}→{{ ' '.join(cell[1][1]) }}
-                        {% elif cell[0]=='acc' %} acc
+        {% if result %}
+        <div class="results">
+            {% if result.success %}
+                <div class="status success">
+                    <div class="status-icon">✓</div>
+                    <div class="status-text">
+                        <h3>Cadena aceptada</h3>
+                        <p>La cadena pertenece al lenguaje generado por la gramática</p>
+                    </div>
+                </div>
+            {% else %}
+                <div class="status error">
+                    <div class="status-icon">✗</div>
+                    <div class="status-text">
+                        <h3>{{ result.error }}</h3>
+                        {% if result.conflicts %}
+                        <div class="conflicts">
+                            <strong>Conflictos detectados:</strong>
+                            <ul>
+                                {% for conflict in result.conflicts %}
+                                <li>{{ conflict }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
                         {% endif %}
-                      {% endif %}
-                    </td>
-                  {% endfor %}
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+                    </div>
+                </div>
+            {% endif %}
+            
+            {% if result.success %}
+            <div class="tabs-container">
+                <div class="tabs-nav">
+                    <button class="tab-btn active" onclick="showTab('gramatica')">
+                        <span class="tab-icon">📝</span>
+                        GRAMÁTICA
+                    </button>
+                    <button class="tab-btn" onclick="showTab('tabla-lr')">
+                        <span class="tab-icon">📊</span>
+                        TABLA LR
+                    </button>
+                    <button class="tab-btn" onclick="showTab('derivacion')">
+                        <span class="tab-icon">🔄</span>
+                        DERIVACIÓN
+                    </button>
+                    {% if result.parse_steps %}
+                    <button class="tab-btn" onclick="showTab('pasos')">
+                        <span class="tab-icon">⚡</span>
+                        PASOS
+                    </button>
+                    {% endif %}
+                    {% if result.states %}
+                    <button class="tab-btn" onclick="showTab('estados')">
+                        <span class="tab-icon">🔗</span>
+                        ESTADOS
+                    </button>
+                    {% endif %}
+                </div>
+                
+                <div class="tab-content">
+                    <div id="gramatica-tab" class="tab-pane active">
+                        <div class="grammar-info">
+                            <h4>Información de la gramática</h4>
+                            <div class="grammar-stats">
+                                <div class="stat">
+                                    <span class="stat-label">Producciones:</span>
+                                    <span class="stat-value">{{ result.productions_count if result.productions_count else 'N/A' }}</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-label">Terminales:</span>
+                                    <span class="stat-value">{{ result.terminals|length if result.terminals else 'N/A' }}</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-label">No terminales:</span>
+                                    <span class="stat-value">{{ result.nonterminals|length if result.nonterminals else 'N/A' }}</span>
+                                </div>
+                                {% if result.states %}
+                                <div class="stat">
+                                    <span class="stat-label">Estados LR(1):</span>
+                                    <span class="stat-value">{{ result.states|length }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            {% if result.terminals %}
+                            <div class="symbols">
+                                <div class="symbol-group">
+                                    <h5>Símbolos terminales</h5>
+                                    <div class="symbol-list">
+                                        {% for terminal in result.terminals %}
+                                        <span class="symbol terminal">{{ terminal }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                
+                                {% if result.nonterminals %}
+                                <div class="symbol-group">
+                                    <h5>Símbolos no terminales</h5>
+                                    <div class="symbol-list">
+                                        {% for nonterminal in result.nonterminals %}
+                                        <span class="symbol nonterminal">{{ nonterminal }}</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div id="tabla-lr-tab" class="tab-pane">
+                        {% if result.action_table %}
+                        <div class="table-section">
+                            <h4>Tabla ACTION</h4>
+                            <div class="table-wrapper">
+                                <table class="lr-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="state-header">Estado</th>
+                                            {% for terminal in result.terminals %}
+                                            <th class="terminal-header">{{ terminal }}</th>
+                                            {% endfor %}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for state_id in range(result.action_table|length) %}
+                                        <tr>
+                                            <td class="state-cell">{{ state_id }}</td>
+                                            {% for terminal in result.terminals %}
+                                            <td class="action-cell">
+                                                {% set action = result.action_table[state_id].get(terminal, '') %}
+                                                {% if action %}
+                                                <span class="action-{{ action.split()[0] }}">{{ action }}</span>
+                                                {% endif %}
+                                            </td>
+                                            {% endfor %}
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        {% if result.goto_table %}
+                        <div class="table-section">
+                            <h4>Tabla GOTO</h4>
+                            <div class="table-wrapper">
+                                <table class="lr-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="state-header">Estado</th>
+                                            {% for nonterminal in result.nonterminals %}
+                                            <th class="nonterminal-header">{{ nonterminal }}</th>
+                                            {% endfor %}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for state_id in range(result.goto_table|length) %}
+                                        <tr>
+                                            <td class="state-cell">{{ state_id }}</td>
+                                            {% for nonterminal in result.nonterminals %}
+                                            <td class="goto-cell">
+                                                {% set goto = result.goto_table[state_id].get(nonterminal, '') %}
+                                                {% if goto %}
+                                                <span class="goto-value">{{ goto }}</span>
+                                                {% endif %}
+                                            </td>
+                                            {% endfor %}
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div id="derivacion-tab" class="tab-pane">
+                        {% if result.derivation %}
+                        <div class="derivation-section">
+                            <h4>Secuencia de derivación</h4>
+                            <div class="derivation-steps">
+                                {% for step in result.derivation %}
+                                <div class="derivation-step">
+                                    <span class="step-number">{{ loop.index }}</span>
+                                    <span class="step-formula">{{ step }}</span>
+                                </div>
+                                {% if not loop.last %}
+                                <div class="derivation-arrow">⇒</div>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if result.parse_steps %}
+                    <div id="pasos-tab" class="tab-pane">
+                        <div class="parse-section">
+                            <h4>Análisis paso a paso</h4>
+                            <div class="table-wrapper">
+                                <table class="parse-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Paso</th>
+                                            <th>Pila</th>
+                                            <th>Entrada</th>
+                                            <th>Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for step in result.parse_steps %}
+                                        <tr>
+                                            <td class="step-number">{{ loop.index }}</td>
+                                            <td class="stack-cell">{{ step.stack }}</td>
+                                            <td class="input-cell">{{ step.input }}</td>
+                                            <td class="action-cell">{{ step.action }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if result.states %}
+                    <div id="estados-tab" class="tab-pane">
+                        <div class="states-section">
+                            <h4>Estados del autómata LR(1)</h4>
+                            <div class="states-grid">
+                                {% for state in result.states %}
+                                <div class="state-card">
+                                    <div class="state-header">
+                                        <h5>Estado {{ state['id'] }}</h5>
+                                    </div>
+                                    <div class="state-items">
+                                        {% for item in state['items'] %}
+                                        <div class="state-item">
+                                            <span class="item-production">{{ item.production }}</span>
+                                            <span class="item-separator">|</span>
+                                            <span class="item-lookahead">{{ item.lookahead }}</span>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
+        {% endif %}
+    </div>
 
-  <h2>Tabla GOTO</h2>
-        <div class="scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>estado</th>
-                {% for A in tables.nonterminals %}<th>{{ A }}</th>{% endfor %}
-              </tr>
-            </thead>
-            <tbody>
-              {% for s, row in tables.goto_rows %}
-                <tr>
-                  <td>{{ s }}</td>
-                  {% for cell in row %}
-                    <td>{% if cell is not none %}{{ cell }}{% endif %}</td>
-                  {% endfor %}
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    {% endif %}
+    <script>
+        const presets = {
+            arithmetic: {
+                grammar: `E -> E + T | T
+T -> T * F | F  
+F -> ( E ) | id`,
+                string: "id + id * id"
+            },
+            simple: {
+                grammar: `S -> A B
+A -> a
+B -> b`,
+                string: "a b"
+            },
+            parentheses: {
+                grammar: `S -> ( S ) S | epsilon`,
+                string: "( ( ) )"
+            },
+            if_else: {
+                grammar: `S -> if E then S else S | id
+E -> id`,
+                string: "if id then id else id"
+            },
+            while: {
+                grammar: `S -> while E do S | id
+E -> id`,
+                string: "while id do id"
+            },
+            assignment: {
+                grammar: `S -> V = E | E
+V -> id
+E -> E + V | V`,
+                string: "id = id + id"
+            },
+            lists: {
+                grammar: `L -> L , E | E
+E -> id`,
+                string: "id , id , id"
+            }
+        };
 
-    {% if result %}
-      <section>
-  <h2>Pasos del análisis</h2>
-        <div class="scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Pila estados</th>
-                <th>Pila símbolos</th>
-                <th>Entrada</th>
-                <th>Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for st in result.steps %}
-                <tr>
-                  <td>{{ loop.index0 }}</td>
-                  <td>{{ st.states }}</td>
-                  <td>{{ st.symbols }}</td>
-                  <td>{{ ' '.join(st.input) }}</td>
-                  <td>{{ st.action }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-        <p><strong>Resultado:</strong> {{ 'ACEPTADO' if result.accepted else 'RECHAZADO' }}</p>
-        {% if result.error %}<p class="error">{{ result.error }}</p>{% endif %}
-      </section>
+        function loadPreset(name) {
+            const preset = presets[name];
+            if (preset) {
+                document.getElementById('grammar').value = preset.grammar;
+                document.getElementById('string').value = preset.string;
+            }
+        }
 
-      {% if derivation %}
-        <section>
-          <h2>Derivación</h2>
-          <ol class="derivation">
-            {% for sent in derivation %}
-              <li>{{ ' '.join(sent) }}</li>
-            {% endfor %}
-          </ol>
-        </section>
-      {% endif %}
-    {% endif %}
-  </main>
+        function showTab(tabName) {
+            // Hide all tab panes
+            const tabPanes = document.querySelectorAll('.tab-pane');
+            tabPanes.forEach(pane => pane.classList.remove('active'));
+            
+            // Remove active class from all tab buttons
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            
+            // Show selected tab pane
+            const selectedPane = document.getElementById(tabName + '-tab');
+            if (selectedPane) {
+                selectedPane.classList.add('active');
+            }
+            
+            // Add active class to clicked button
+            event.target.closest('.tab-btn').classList.add('active');
+        }
+
+        // Auto-resize textarea
+        const textarea = document.getElementById('grammar');
+        if (textarea) {
+            textarea.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.max(this.scrollHeight, 120) + 'px';
+            });
+        }
+    </script>
 </body>
 </html>

@@ -357,7 +357,7 @@ body {
 .symbol.terminal {
     background: rgb(16 185 129 / 0.1);
     color: var(--success-color);
-    border: 1px solid rgb(16 185 129 / 0.2);
+   ;border: 1px solid rgb(16 185 129 / 0.2);
 }
 
 .symbol.nonterminal {
