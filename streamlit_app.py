@@ -141,16 +141,111 @@ EXAMPLE_GRAMMAR = (
     "F -> ( E ) | id"
 )
 
+# Presets de gramáticas y cadenas de ejemplo para autocompletar
+PRESETS = {
+    "Aritmética (+, *)": {
+        "grammar": EXAMPLE_GRAMMAR,
+        "inputs": ["id + id * id", "( id + id ) * id", "id"]
+    },
+    "If–else (dangling else)": {
+        "grammar": (
+            "S -> Stmt\n"
+            "Stmt -> Matched | Unmatched\n"
+            "Matched -> if E then Matched else Matched | id\n"
+            "Unmatched -> if E then Stmt | if E then Matched else Unmatched\n"
+            "E -> id"
+        ),
+        "inputs": [
+            "if id then id",
+            "if id then id else id",
+            "if id then if id then id else id",
+            "id"
+        ]
+    },
+    "Paréntesis balanceados": {
+        "grammar": (
+            "S -> ( S ) S | ε"
+        ),
+        "inputs": ["( )", "( ) ( )", "( ( ) )"]
+    },
+    "Listas con comas [id, id]": {
+        "grammar": (
+            "S -> [ OptList ]\n"
+            "OptList -> List | ε\n"
+            "List -> List , E | E\n"
+            "E -> id"
+        ),
+        "inputs": ["[ id , id ]", "[ ]", "[ id , id , id ]"]
+    },
+    "Potencia derecha (^)": {
+        "grammar": (
+            "E -> F ^ E | F\n"
+            "F -> ( E ) | id"
+        ),
+        "inputs": ["id ^ id ^ id", "id ^ id", "( id ^ id ) ^ id"]
+    },
+    "a^n b^n": {
+        "grammar": (
+            "S -> a S b | ε"
+        ),
+        "inputs": ["a b", "a a b b", "a a a b b b"]
+    },
+    "Asignaciones (LR(1) no SLR)": {
+        "grammar": (
+            "S -> L = R | R\n"
+            "L -> * R | id\n"
+            "R -> L"
+        ),
+        "inputs": ["* id = * id", "id", "id = id"]
+    },
+}
+
+# Estado inicial de los campos editables
+if "grammar_text" not in st.session_state:
+    st.session_state["grammar_text"] = EXAMPLE_GRAMMAR
+if "input_string" not in st.session_state:
+    st.session_state["input_string"] = "id + id * id"
+
+# Selector de ejemplos rápidos
+with st.container():
+    cols = st.columns([2, 2, 1])
+    with cols[0]:
+        preset_name = st.selectbox(
+            "Elegir ejemplo",
+            ["(ninguno)"] + list(PRESETS.keys()),
+            index=0,
+        )
+    with cols[1]:
+        preset_input = None
+        if preset_name != "(ninguno)":
+            preset_input = st.selectbox(
+                "Cadena ejemplo",
+                PRESETS[preset_name]["inputs"],
+                index=0,
+                key="preset_input_choice",
+            )
+    with cols[2]:
+        if preset_name != "(ninguno)":
+            if st.button("Cargar ejemplo"):
+                st.session_state["grammar_text"] = PRESETS[preset_name]["grammar"]
+                st.session_state["input_string"] = preset_input or PRESETS[preset_name]["inputs"][0]
+                st.rerun()
+
 col1, col2 = st.columns([3, 2])
 with col1:
     grammar_text = st.text_area(
         "Gramática (BNF)",
-        value=EXAMPLE_GRAMMAR,
+        value=st.session_state.get("grammar_text", EXAMPLE_GRAMMAR),
         height=180,
+        key="grammar_text",
         placeholder="Ejemplo:\nE -> E + T | T\nT -> T * F | F\nF -> ( E ) | id",
     )
 with col2:
-    input_string = st.text_input("Cadena a analizar", value="id + id * id")
+    input_string = st.text_input(
+        "Cadena a analizar (tokens separados por espacios)",
+        value=st.session_state.get("input_string", "id + id * id"),
+        key="input_string",
+    )
     analyze = st.button("Analizar", type="primary")
 
 if analyze:
